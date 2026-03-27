@@ -31,9 +31,6 @@ basicauth_credentials:
   - consumer: DASHBOARD
     username: "$DASHBOARD_USERNAME"
     password: "$DASHBOARD_PASSWORD"
-  - consumer: MCP
-    username: "$MCP_USERNAME"
-    password: "$MCP_PASSWORD"
 
 ###
 ### API Routes
