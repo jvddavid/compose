@@ -24,9 +24,15 @@ x-aws-s3-env: &aws-s3-env
   AWS_S3_BUCKET_NAME: ${AWS_S3_BUCKET_NAME:-uploads}
 
 x-proxy-env: &proxy-env
-  NGINX_PORT: ${NGINX_PORT:-80}
-  BUCKET_NAME: ${AWS_S3_BUCKET_NAME:-uploads}
+  APP_DOMAIN: ${APP_DOMAIN:-localhost}
   FILE_SIZE_LIMIT: ${FILE_SIZE_LIMIT:-5242880}
+  CERT_EMAIL: ${CERT_EMAIL}
+  CERT_ACME_CA: ${CERT_ACME_CA}
+  CERT_ACME_DNS: ${CERT_ACME_DNS}
+  LISTEN_HTTP_PORT: ${LISTEN_HTTP_PORT:-80}
+  LISTEN_HTTPS_PORT: ${LISTEN_HTTPS_PORT:-443}
+  BUCKET_NAME: ${AWS_S3_BUCKET_NAME:-uploads}
+  SITE_ADDRESS: ${SITE_ADDRESS:-:80}
 
 x-mq-env:
   # RabbitMQ Settings
@@ -40,6 +46,7 @@ x-mq-env:
 
 x-live-env: &live-env
   API_BASE_URL: ${API_BASE_URL:-http://api:8000}
+  LIVE_SERVER_SECRET_KEY: ${LIVE_SERVER_SECRET_KEY:-2FiJk1U2aiVPEQtzLehYGlTSnTnrs7LW}
 
 x-app-env: &app-env
   WEB_URL: ${WEB_URL:-http://localhost}
@@ -52,26 +59,25 @@ x-app-env: &app-env
   AMQP_URL: ${AMQP_URL:-amqp://plane:plane@plane-mq:5672/plane}
   API_KEY_RATE_LIMIT: ${API_KEY_RATE_LIMIT:-60/minute}
   MINIO_ENDPOINT_SSL: ${MINIO_ENDPOINT_SSL:-0}
+  LIVE_SERVER_SECRET_KEY: ${LIVE_SERVER_SECRET_KEY:-2FiJk1U2aiVPEQtzLehYGlTSnTnrs7LW}
 
 services:
   web:
     image: artifacts.plane.so/makeplane/plane-frontend:${APP_RELEASE:-stable}
-    command: node web/server.js web
     deploy:
       replicas: ${WEB_REPLICAS:-1}
       restart_policy:
-        condition: on-failure
+        condition: any
     depends_on:
       - api
       - worker
 
   space:
     image: artifacts.plane.so/makeplane/plane-space:${APP_RELEASE:-stable}
-    command: node space/server.js space
     deploy:
       replicas: ${SPACE_REPLICAS:-1}
       restart_policy:
-        condition: on-failure
+        condition: any
     depends_on:
       - api
       - worker
@@ -79,24 +85,22 @@ services:
 
   admin:
     image: artifacts.plane.so/makeplane/plane-admin:${APP_RELEASE:-stable}
-    command: node admin/server.js admin
     deploy:
       replicas: ${ADMIN_REPLICAS:-1}
       restart_policy:
-        condition: on-failure
+        condition: any
     depends_on:
       - api
       - web
 
   live:
     image: artifacts.plane.so/makeplane/plane-live:${APP_RELEASE:-stable}
-    command: node live/dist/server.js live
     environment:
-      <<: [ *live-env ]
+      <<: [ *live-env, *redis-env ]
     deploy:
       replicas: ${LIVE_REPLICAS:-1}
       restart_policy:
-        condition: on-failure
+        condition: any
     depends_on:
       - api
       - web
@@ -107,7 +111,7 @@ services:
     deploy:
       replicas: ${API_REPLICAS:-1}
       restart_policy:
-        condition: on-failure
+        condition: any
     volumes:
       - logs_api:/code/plane/logs
     environment:
@@ -123,7 +127,7 @@ services:
     deploy:
       replicas: ${WORKER_REPLICAS:-1}
       restart_policy:
-        condition: on-failure
+        condition: any
     volumes:
       - logs_worker:/code/plane/logs
     environment:
@@ -140,7 +144,7 @@ services:
     deploy:
       replicas: ${BEAT_WORKER_REPLICAS:-1}
       restart_policy:
-        condition: on-failure
+        condition: any
     volumes:
       - logs_beat-worker:/code/plane/logs
     environment:
@@ -173,18 +177,18 @@ services:
     deploy:
       replicas: 1
       restart_policy:
-        condition: on-failure
+        condition: any
     environment:
       <<: *db-env
     volumes:
       - pgdata:/var/lib/postgresql/data
 
   plane-redis:
-    image: valkey/valkey:7.2.5-alpine
+    image: valkey/valkey:7.2.11-alpine
     deploy:
       replicas: 1
       restart_policy:
-        condition: on-failure
+        condition: any
     volumes:
       - redisdata:/data
 
@@ -193,7 +197,7 @@ services:
     deploy:
       replicas: 1
       restart_policy:
-        condition: on-failure
+        condition: any
     environment:
       <<: *mq-env
     volumes:
@@ -206,7 +210,7 @@ services:
     deploy:
       replicas: 1
       restart_policy:
-        condition: on-failure
+        condition: any
     environment:
       <<: *minio-env
     volumes:
@@ -215,16 +219,21 @@ services:
   # Comment this if you already have a reverse proxy running
   proxy:
     image: artifacts.plane.so/makeplane/plane-proxy:${APP_RELEASE:-stable}
-    environment:
-      <<: *proxy-env
     deploy:
       replicas: 1
       restart_policy:
-        condition: on-failure
+        condition: any
+    environment:
+      <<: *proxy-env
+    volumes:
+      - proxy_config:/config
+      - proxy_data:/data
     depends_on:
       - web
       - api
       - space
+      - admin
+      - live
 
 volumes:
   pgdata:
@@ -235,3 +244,5 @@ volumes:
   logs_beat-worker:
   logs_migrator:
   rabbitmq_data:
+  proxy_config:
+  proxy_data:

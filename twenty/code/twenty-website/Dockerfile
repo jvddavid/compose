@@ -1,4 +1,4 @@
-FROM node:18.17.1-alpine as twenty-website-build
+FROM node:24-alpine AS twenty-website-build
 
 
 WORKDIR /app
@@ -7,7 +7,8 @@ COPY ./package.json .
 COPY ./yarn.lock .
 COPY ./.yarnrc.yml .
 COPY ./.yarn/releases /app/.yarn/releases
-COPY ./tools/eslint-rules /app/tools/eslint-rules
+COPY ./.yarn/patches /app/.yarn/patches
+COPY ./packages/twenty-oxlint-rules /app/packages/twenty-oxlint-rules
 COPY ./packages/twenty-ui/package.json /app/packages/twenty-ui/
 COPY ./packages/twenty-shared/package.json /app/packages/twenty-shared/
 COPY ./packages/twenty-website/package.json /app/packages/twenty-website/package.json
@@ -23,7 +24,7 @@ COPY ./packages/twenty-ui /app/packages/twenty-ui
 COPY ./packages/twenty-website /app/packages/twenty-website
 RUN npx nx build twenty-website
 
-FROM node:18.17.1-alpine as twenty-website
+FROM node:24-alpine AS twenty-website
 
 WORKDIR /app/packages/twenty-website
 
